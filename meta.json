@@ -1,0 +1,13 @@
+{
+  "id": "xueren-audio-video-to-text",
+  "name": "雪人老师·音视频转文字",
+  "version": "2.6.0",
+  "author": "雪人",
+  "platforms": [
+    "WorkBuddy"
+  ],
+  "description": "长音频/视频转文字（B通道，免登录/免 key）。音频≤100min整段、>100min拆60min段并行；视频（mp4等）自动提取音频转码 mp3 后提交；出错冷却5min重试。默认输出与原文件同名的纯文字txt（不带时间戳、无头部说明）；可指定srt/ass。依赖解析：优先用本机（requests、ffmpeg），缺失时自动下载到 skill/bin/ 并指引手动放置。",
+  "github": "https://github.com/JackieZheng/xueren-audio-video-to-text",
+  "agent_created": true,
+  "updated_at": "2026-09-19"
+}
