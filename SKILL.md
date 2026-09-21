@@ -5,7 +5,7 @@ title: 雪人老师·音视频转文字
 description: 长音频/视频转文字（B通道，免登录/免 key）。基于 AsrTools 开源库转写 mp3/wav/m4a/flac 等音频；视频（mp4 等）自动用 ffmpeg 提取音频转码 mp3 后提交。默认输出与原文件同名的纯文字 txt（不带时间戳、无头部说明）。音频 ≤100 分钟整段提交，>100 分钟自动拆 60 分钟段并行，出错冷却 5 分钟重试。适用于课程录音、讲座、播客、会议录音、教学视频等。
 description_zh: 雪人老师·音视频转文字
 description_en: xueren-audio-video-to-text
-version: 2.6.0
+version: 2.6.1
 author: 雪人
 license: GPL-3.0
 allowed-tools: ""
