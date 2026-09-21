@@ -485,6 +485,10 @@ def main():
             print(f"[提示] asr_out_* 中间目录已自动删除（如需保留断点续传可加 --keep）")
         elif all_ok and args.keep:
             print(f"[提示] 已保留 asr_out_* 中间目录（--keep）")
+        # 若源文件是视频，清理中间生成的 mp3（与整段分支保持一致）
+        if audio != src and os.path.exists(audio):
+            os.remove(audio)
+            print(f"[清理] 已删除中间音频: {os.path.basename(audio)}")
 
 
 if __name__ == "__main__":
