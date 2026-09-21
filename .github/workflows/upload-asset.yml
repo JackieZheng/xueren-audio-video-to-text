@@ -1,13 +1,10 @@
 name: upload-release-asset
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   upload:
     runs-on: ubuntu-latest
@@ -779,7 +776,7 @@ jobs:
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPLOAD_URL: https://api.github.com/repos/JackieZheng/xueren-audio-video-to-text/releases/392701575/assets?name=xueren-audio-video-to-text-v2.6.1.zip
+          UPLOAD_URL: https://api.github.com/repos/JackieZheng/xueren-audio-video-to-text/releases/392726192/assets?name=xueren-audio-video-to-text-v2.6.1.zip
           ASSET_PATH: xueren-audio-video-to-text-v2.6.1.zip
         run: |
           curl -sS -L -X POST \
