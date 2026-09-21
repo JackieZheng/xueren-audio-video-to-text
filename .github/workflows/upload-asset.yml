@@ -785,6 +785,6 @@ jobs:
           ASSET_PATH: xueren-audio-video-to-text-v2.6.1.zip
         run: |
           set -x
-          gh release upload "$TAG" "$ASSET_PATH" --clobber --verify
+          gh release upload "$TAG" "$ASSET_PATH" --clobber
           echo "---"
           gh release view "$TAG" --json assets -q '.assets[] | {id, name, size, browserDownloadUrl}'
