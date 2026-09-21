@@ -773,16 +773,18 @@ jobs:
           printf '%s' "$B64" | base64 -d > xueren-audio-video-to-text-v2.6.1.zip
           ls -l xueren-audio-video-to-text-v2.6.1.zip
           sha256sum xueren-audio-video-to-text-v2.6.1.zip
-      - name: Upload release asset
+      - name: Setup GitHub CLI
+        run: |
+          which gh || (sudo apt-get update && sudo apt-get install -y gh)
+          gh --version
+      - name: Upload release asset via gh CLI
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPLOAD_URL: https://api.github.com/repos/JackieZheng/xueren-audio-video-to-text/releases/392726192/assets?name=xueren-audio-video-to-text-v2.6.1.zip
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: JackieZheng/xueren-audio-video-to-text
+          TAG: v2.6.1
           ASSET_PATH: xueren-audio-video-to-text-v2.6.1.zip
         run: |
-          curl -sS -L -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Content-Type: application/zip" \
-            -w "\nHTTP_STATUS=%{http_code}\n" \
-            --data-binary "@$ASSET_PATH" \
-            "$UPLOAD_URL"
+          set -x
+          gh release upload "$TAG" "$ASSET_PATH" --clobber --verify
+          echo "---"
+          gh release view "$TAG" --json assets -q '.assets[] | {id, name, size, browserDownloadUrl}'
