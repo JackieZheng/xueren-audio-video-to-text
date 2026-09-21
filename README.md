@@ -54,7 +54,7 @@
 
 ### 方式二：下载 release 包，再交给 AI 安装
 
-1. 到 [Releases](https://github.com/JackieZheng/xueren-audio-video-to-text/releases) 下载最新 `.zip`（如 `xueren-audio-video-to-text-v2.6.0.zip`），解压；
+1. 到 [Releases](https://github.com/JackieZheng/xueren-audio-video-to-text/releases) 下载最新 `.zip`（如 `xueren-audio-video-to-text-v2.6.1.zip`），解压；
 2. 把解压出的文件夹交给 AI，说一句「安装这个 skill 并转写这段录音」：
 
    ```
@@ -157,6 +157,7 @@ xueren-audio-video-to-text/
 
 ## 版本
 
+- **v2.6.1**（2026-09-21）：修复 >100 分钟拆分并行分支漏清中间 mp3 的 bug（视频转写后残留 mp3 现已自动删除）
 - **v2.6.0**（2026-09-19）：`asr_out_*` 中间目录用后自动删、需要时自动建；新增 `--keep` 开关保留断点续传
 - **v2.5.0**（2026-09-18）：视频自动提音频；默认纯文字同名 txt（无时间戳、无头部）；依赖本机优先
 - **v2.4.0**：视频格式自动提取音频转码 mp3 后提交
