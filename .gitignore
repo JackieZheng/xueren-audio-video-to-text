@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+# 本地自动下载的依赖（ffmpeg 等），不随仓库分发
+bin/
+*.exe
+# 运行临时产物
+asr_out_*/
+*.mp3.tmp
