@@ -44,7 +44,7 @@ DEFAULT_FFPROBE = None
 _PROG = None
 
 
-def _open_progress(title, total, unit="段"):
+def _open_progress(title, total, unit="段", message=None, planned_sec=None):
     """惰性加载 live-progress 的 progress.py；失败则静默返回 None。"""
     global _PROG
     try:
@@ -53,17 +53,28 @@ def _open_progress(title, total, unit="段"):
         if os.path.isdir(lp) and lp not in sys.path:
             sys.path.insert(0, lp)
         from progress import Progress
-        _PROG = Progress(title, total=total, unit=unit, source="asr")
+        _PROG = Progress(title, total=total, unit=unit, source="asr", message=message,
+                         planned_sec=planned_sec)
     except Exception:
         _PROG = None
     return _PROG
 
 
-def _p_set(done=None, msg=None):
+def _p_set(done=None, msg=None, total=None):
     if _PROG is None:
         return
     try:
-        _PROG.set(done, message=msg)
+        _PROG.set(done, total=total, message=msg)
+    except Exception:
+        pass
+
+
+def _p_plan(sec, msg=None):
+    """修正预估总耗时（秒）——面板据此算「预计完成」钟点与时间进度。"""
+    if _PROG is None or not sec:
+        return
+    try:
+        _PROG.plan(sec, message=msg)
     except Exception:
         pass
 
@@ -90,6 +101,37 @@ def count_parts(dur_s, part_min):
     """按拆分规则算段数（与 split_parts 完全一致）。"""
     seg_s = part_min * 60
     return int(dur_s // seg_s) + (1 if dur_s % seg_s > 1 else 0)
+
+
+# 速率/耗时基线（均取自本机历史实测，仅用于面板「预计完成」对表，不参与任何结算）：
+#   · B 通道整段提交：约 0.6 秒 / 音频分钟（实测 92.9 分→44~56s、0.3 分→8s）
+#   · 视频提音频：约 0.15 秒 / 源文件 MB（实测 695MB→21s 热缓存 / 180s 冷启）
+#   · 拆分切分：约 0.25 秒 / 音频分钟（实测 178 分→~40s）
+PART_EST_PER_MIN = 0.6     # 秒/分钟（单段转写）
+EXTRACT_EST_PER_MB = 0.15  # 秒/MB（视频提音频）
+SPLIT_EST_PER_MIN = 0.25   # 秒/分钟（ffmpeg 切分）
+
+
+def estimate_secs(dur_s, n_parts, parallel, part_min, src_path):
+    """返回 (预估提音频+切分秒, 预估转写秒)。纯经验估算，供面板对表。"""
+    dur_min = max(0.0, dur_s / 60.0)
+    prep = 0.0
+    is_video = os.path.splitext(str(src_path))[1].lower() in (
+        ".mp4", ".mkv", ".mov", ".avi", ".flv", ".wmv", ".webm", ".ts", ".m4v")
+    if is_video:
+        try:
+            mb = os.path.getsize(src_path) / 1024.0 / 1024.0
+        except Exception:
+            mb = 0.0
+        prep += min(300.0, max(20.0, mb * EXTRACT_EST_PER_MB))
+    if n_parts <= 1:
+        asr = max(30.0, min(120.0, dur_min * PART_EST_PER_MIN))
+    else:
+        prep += min(90.0, dur_min * SPLIT_EST_PER_MIN)
+        rounds = -(-int(n_parts) // max(1, int(parallel)))
+        per = max(30.0, min(90.0, part_min * PART_EST_PER_MIN))
+        asr = 10.0 + rounds * per
+    return prep, asr
 
 
 def _shutil_which(name):
@@ -532,18 +574,28 @@ def main():
     _ensure_ffmpeg()
     src = args.audio
     assert os.path.exists(src), f"文件不存在: {src}"
+
+    # 实时进度接入（可选；失败静默降级，不影响转写）
+    # 先建卡片再提音频：视频提音频阶段也要在面板可见（total 先占位，算完时长再更新）
+    _AUDIO_EXT = {".mp3", ".wav", ".m4a", ".flac"}
+    is_video = os.path.splitext(src)[1].lower() not in _AUDIO_EXT
+    if not args.no_progress:
+        _open_progress(f"转写 {os.path.basename(src)}", total=1, unit="段",
+                       message=("提取音频中…" if is_video else "准备中…"))
+        if is_video:
+            _p_log("视频文件 → ffmpeg 提取音频")
+
     # 视频格式先提取音频
     audio = ensure_audio(src)
     dur_s = probe_duration(audio)
     dur_min = dur_s / 60
     print(f"=== B通道转写: {os.path.basename(audio)}  时长 {dur_min:.1f} 分钟 ===")
 
-    # 实时进度接入（可选；失败静默降级，不影响转写）
     if not args.no_progress:
         n_parts = 1 if dur_min <= WHOLE_LIMIT_MIN else count_parts(dur_s, args.part_min)
-        _open_progress(f"转写 {os.path.basename(src)}", total=max(1, n_parts), unit="段")
         _p_set(0, f"{dur_min:.1f} 分钟 · " +
-               ("整段提交" if n_parts == 1 else f"拆 {n_parts} 段并行"))
+               ("整段提交" if n_parts == 1 else f"拆 {n_parts} 段并行"),
+               total=max(1, n_parts))
 
     t0 = time.time()
     try:

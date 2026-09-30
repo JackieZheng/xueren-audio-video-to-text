@@ -7,7 +7,7 @@ slug: xueren-audio-video-to-text
 displayName: 雪人老师·音视频转文字
 summary: 长音频/视频转文字（B通道，免登录/免 key）。
 description_en: Convert long audio/video to text via AsrTools (no login/key needed).
-version: 2.6.4
+version: 2.6.5
 author: 雪人
 license: GPL-3.0
 allowed-tools: ""
@@ -104,10 +104,13 @@ python scripts/asr_whole.py "<media_path>" [--parallel 3] [--cooldown 300] [--pa
 
 | 阶段 | 卡片内容 |
 |------|---------|
-| 启动 | `转写 <文件名>` · `0/N 段` · 「`X 分钟 · 整段提交`」或「`X 分钟 · 拆 N 段并行`」 |
+| 启动（**先于提音频**） | `转写 <文件名>` · 视频显示「提取音频中…」+ 日志「视频文件 → ffmpeg 提取音频」；音频显示「准备中…」 |
+| 提音频后 | 更新总量与文案：「`X 分钟 · 整段提交`」或「`X 分钟 · 拆 N 段并行`」 |
 | 整段转写中 | 日志「整段提交 B 通道，排队转写中…」→ 完成后 `1/1` + 「整段完成，N 句」 |
 | 拆段转写中 | 每完成一轮刷新 `已完成 k/N 段` 并写日志；风控/冷却/失败重试同样写入日志 |
 | 结束 | `status=done/failed` + 「完成 N 句 · 耗时 Xs」/「部分缺失 · 耗时 Xs」 |
+
+> 视频提音频（ffmpeg 提取 60 分钟以上可能要 1~2 分钟）也计入面板可见范围——卡片在 `ensure_audio()` **之前**就建立，避免"任务已在跑、面板却空白"。
 
 - **实现**：`_open_progress()` 惰性 `from progress import Progress`（路径 `~/.workbuddy/skills/xueren-live-progress/scripts`）；导入失败或写盘失败一律 `except` 吞掉，**不抛错、不拖慢转写**。
 - **并发安全**：拆段路径的进度在**主线程**按已完成 `part_XX.json` 数量汇总上报（`progress.inc()` 是读-改-写，多线程并发会丢更新）。
