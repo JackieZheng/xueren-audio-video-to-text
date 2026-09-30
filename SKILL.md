@@ -3,9 +3,11 @@ id: xueren-audio-video-to-text
 name: 雪人老师·音视频转文字
 title: 雪人老师·音视频转文字
 description: 长音频/视频转文字（B通道，免登录/免 key）。基于 AsrTools 开源库转写 mp3/wav/m4a/flac 等音频；视频（mp4 等）自动用 ffmpeg 提取音频转码 mp3 后提交。默认输出与原文件同名的纯文字 txt（不带时间戳、无头部说明）。音频 ≤100 分钟整段提交，>100 分钟自动拆 60 分钟段并行，出错冷却 5 分钟重试。适用于课程录音、讲座、播客、会议录音、教学视频等。
-description_zh: 雪人老师·音视频转文字
-description_en: xueren-audio-video-to-text
-version: 2.6.2
+slug: xueren-audio-video-to-text
+displayName: 雪人老师·音视频转文字
+summary: 长音频/视频转文字（B通道，免登录/免 key）。
+description_en: Convert long audio/video to text via AsrTools (no login/key needed).
+version: 2.6.4
 author: 雪人
 license: GPL-3.0
 allowed-tools: ""
@@ -16,10 +18,13 @@ examples: "用户提供一段 30 分钟课程录音 mp3（或一段 mp4 视频�
 agent_created: true
 platforms: [WorkBuddy]
 github: https://github.com/JackieZheng/xueren-audio-video-to-text
+skillhub: https://skillhub.cn/skills/indiv-xueren/xueren-audio-video-to-text
 release: https://github.com/JackieZheng/xueren-audio-video-to-text/releases
 metadata:
   author: 雪人
   category: 效率工具
+description_zh: 长音频/视频转文字（B通道，免登录/免 key）。基于 AsrTools 开源库转写 mp3/wav/m4a/flac 等音频；视频（mp4 等）自动用 ffmpeg 提取音频转码 mp3 后提交。默认输出与原文件同名的纯文字 txt（不带时间戳、无头部说明）。音频 ≤100 分钟整段提交，>100 分钟自动拆 60 分钟段并行，出错冷却 5 分钟重试。适用于课程录音、讲座、播客、会议录音、教学视频等。
+
 ---
 
 # 雪人老师·音视频转文字
@@ -56,15 +61,28 @@ metadata:
 ## 你的工作方式
 
 1. **确认文件存在** — `ls -lh <media_path>`（音频或视频）
-2. **执行转写** — 调 `scripts/asr_whole.py`，**后台运行**（转写耗时约等于音频时长；视频会先自动提音频）。视频无需用户手动转音频，直接给 mp4 路径即可。
+2. **执行转写** — 调 `scripts/asr_whole.py`，**后台运行**（转写耗时约等于音频时长；视频会先自动提音频）。视频无需用户手动转音频，直接给 mp4 路径即可。**脚本已内置实时进度上报**（自动接入 `xueren-live-progress`）：启动后进度卡片出现在 `http://127.0.0.1:8791/`，**本轮结束前必须 `present_files` 打开该地址**让用户看实时进度（整段任务 `0/1 → 1/1`，拆段任务按"段"逐段推进并写日志）。面板 skill 缺失/不可用时**静默降级**，绝不影响转写本体。
 3. **交付结果** — 用 `present_files` 展示与原文件同名的 `<原名>.txt`（纯文字）
+4. **收尾源文件删除清单（2026-09-30 用户约定，强制）** — 转写完成、`present_files` 之后，**在回复末尾给出一份"本轮源文件清单"表格**，每行一个源文件，带序号 1/2/3…、完整路径、文件大小；表格下方给出**明确的删除回复指引**，让用户回复编号即可操作。用户回复 `1` / `2` / `1,2` / `全删` / `保留` 时立即执行（走系统回收站，不硬删）。
+
+   **清单格式样板**：
+   ```
+   | # | 源文件 | 大小 |
+   |---|---|---|
+   | 1 | F:\Desktop\Download\周老师\院校9月30日.wav | 178 MB |
+   | 2 | F:\Desktop\Download\大三大四家长必看....mp4 | 92 MB |
+
+   回复 `1` 删第 1 个 / `2` 删第 2 个 / `1,2` 或 `全删` 都删 / `保留` 都不动。
+   ```
+
+   **删除实现（首选回收站）**：`powershell -NoProfile -Command "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('<path>', [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)"`（PowerShell 工具走禁沙箱；逐个删，逐个确认返回值）。**不删产物**（txt 是产物不在此清单里）。**只列本轮消耗的源文件**，不翻旧账。产物不完整/任务中途不提示删除，避免误删。
 
 ## 执行流程
 
 ### 调用入口
 
 ```bash
-python scripts/asr_whole.py "<media_path>" [--parallel 3] [--cooldown 300] [--part-min 60]
+python scripts/asr_whole.py "<media_path>" [--parallel 3] [--cooldown 300] [--part-min 60] [--no-progress]
 ```
 
 > 脚本位于本 skill 目录下的 `scripts/asr_whole.py`，由本机任意可用的 Python 3 直接运行（无需绝对路径）。
@@ -78,6 +96,22 @@ python scripts/asr_whole.py "<media_path>" [--parallel 3] [--cooldown 300] [--pa
 | `--part-min` | 60 | 拆分每段分钟数（默认 60） |
 | `--format` | txt | 输出格式：`txt`（纯文字文稿，不带时间戳）/ `srt`（标准 SRT 字幕）/ `ass`（标准 ASS 字幕） |
 | `--keep` | 关 | 转写成功后**保留** `asr_out_*` 中间目录（默认会自动删除，便于断点续传/重跑） |
+| `--no-progress` | 关 | **不接入**实时进度面板（默认自动接入 `xueren-live-progress`，缺失时静默降级） |
+
+### 实时进度面板（默认开启）
+
+转写启动即自动在 `~/.workbuddy/live-progress/jobs.json` 登记一张进度卡片，面板 `http://127.0.0.1:8791/` 实时显示：
+
+| 阶段 | 卡片内容 |
+|------|---------|
+| 启动 | `转写 <文件名>` · `0/N 段` · 「`X 分钟 · 整段提交`」或「`X 分钟 · 拆 N 段并行`」 |
+| 整段转写中 | 日志「整段提交 B 通道，排队转写中…」→ 完成后 `1/1` + 「整段完成，N 句」 |
+| 拆段转写中 | 每完成一轮刷新 `已完成 k/N 段` 并写日志；风控/冷却/失败重试同样写入日志 |
+| 结束 | `status=done/failed` + 「完成 N 句 · 耗时 Xs」/「部分缺失 · 耗时 Xs」 |
+
+- **实现**：`_open_progress()` 惰性 `from progress import Progress`（路径 `~/.workbuddy/skills/xueren-live-progress/scripts`）；导入失败或写盘失败一律 `except` 吞掉，**不抛错、不拖慢转写**。
+- **并发安全**：拆段路径的进度在**主线程**按已完成 `part_XX.json` 数量汇总上报（`progress.inc()` 是读-改-写，多线程并发会丢更新）。
+- **不重复卡片**：`xueren-live-progress/scripts/hook_bg.py` 的跳过清单已含 `asr_whole.py`，故不会另生成一张 hook 后台卡。
 
 ### 脚本策略（自动判断，无需手动选）
 

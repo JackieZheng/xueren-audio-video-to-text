@@ -38,6 +38,60 @@ DEFAULT_FFMPEG = None
 DEFAULT_FFPROBE = None
 
 
+# ---------------------------------------------------------------- 实时进度
+# 可选接入 xueren-live-progress（面板 http://127.0.0.1:8791/）。
+# 该 skill 不存在 / 导入失败 / 写入失败时**一律静默降级**，绝不影响转写本体。
+_PROG = None
+
+
+def _open_progress(title, total, unit="段"):
+    """惰性加载 live-progress 的 progress.py；失败则静默返回 None。"""
+    global _PROG
+    try:
+        lp = os.path.join(os.path.expanduser("~"), ".workbuddy",
+                          "skills", "xueren-live-progress", "scripts")
+        if os.path.isdir(lp) and lp not in sys.path:
+            sys.path.insert(0, lp)
+        from progress import Progress
+        _PROG = Progress(title, total=total, unit=unit, source="asr")
+    except Exception:
+        _PROG = None
+    return _PROG
+
+
+def _p_set(done=None, msg=None):
+    if _PROG is None:
+        return
+    try:
+        _PROG.set(done, message=msg)
+    except Exception:
+        pass
+
+
+def _p_log(msg):
+    if _PROG is None:
+        return
+    try:
+        _PROG.log(msg)
+    except Exception:
+        pass
+
+
+def _p_end(ok=True, msg=None):
+    if _PROG is None:
+        return
+    try:
+        (_PROG.ok(msg) if ok else _PROG.fail(msg))
+    except Exception:
+        pass
+
+
+def count_parts(dur_s, part_min):
+    """按拆分规则算段数（与 split_parts 完全一致）。"""
+    seg_s = part_min * 60
+    return int(dur_s // seg_s) + (1 if dur_s % seg_s > 1 else 0)
+
+
 def _shutil_which(name):
     """受管 Python 下 shutil.which 偶尔失效，回退 PATH 手工查找。"""
     import shutil
@@ -170,7 +224,10 @@ def run_whole(src, args, orig_src=None):
     max_wait = max(300, int(dur * 1.5) + 120)
     print(f"[整段提交] {os.path.basename(src)} 时长 {dur/60:.1f} 分钟，"
           f"轮询上限 {max_wait}s")
+    _p_set(0, "整段提交 B 通道，排队转写中…")
+    _p_log(f"整段提交 {os.path.basename(src)} · {dur/60:.1f} 分钟 · 轮询上限 {max_wait}s")
     data = transcribe_whole_bchannel(src, max_wait)
+    _p_set(1, f"整段完成，{len(data.segments)} 句")
     base_src = orig_src or src
     out = write_full_txt(base_src, [(0.0, data)], args)
     return out, len(data.segments)
@@ -241,6 +298,10 @@ def run_parts(src, args, orig_src=None):
     part_max_wait = max(600, int(seg_s * 1.5) + 120)
     total_dur = probe_duration(src)
     print(f"[拆分并行] 共 {len(parts)} 段(每段 {part_min} 分钟)，并行度 {args.parallel}")
+    done0 = sum(1 for i, p in parts
+                if os.path.exists(p[:-4] + ".json") and os.path.getsize(p[:-4] + ".json") > 0)
+    _p_set(done0, f"拆 {len(parts)} 段 × {part_min} 分钟 · 并行 {args.parallel} · 已完成 {done0}")
+    _p_log(f"拆分并行：{len(parts)} 段 × {part_min} 分钟，并行度 {args.parallel}")
 
     failed_round = 0
     while True:
@@ -279,14 +340,19 @@ def run_parts(src, args, orig_src=None):
             jf = p[:-4] + ".json"
             if not (os.path.exists(jf) and os.path.getsize(jf) > 0):
                 still.append(p)
+        _p_set(len(parts) - len(still),
+               f"已完成 {len(parts) - len(still)}/{len(parts)} 段")
+        _p_log(f"本轮结束：{len(parts) - len(still)}/{len(parts)} 段完成")
         if not still:
             break
         failed_round += 1
         if failed_round >= 3:
             print(f"[!] 仍有 {len(still)} 段失败，已达最大重试轮数(3)")
+            _p_log(f"[!] 仍有 {len(still)} 段失败，已达最大重试轮数(3)")
             break
         print(f"[冷却] 失败 {len(still)} 段，休息 {args.cooldown}s 后重试"
               f"(第 {failed_round}/3 轮)...")
+        _p_log(f"[冷却] 失败 {len(still)} 段，休息 {args.cooldown}s 后重试（第 {failed_round}/3 轮）")
         time.sleep(args.cooldown)
 
     # 合并所有段
@@ -459,6 +525,8 @@ def main():
                    help="输出格式：txt(纯文字文稿，默认不带时间戳)/srt(标准SRT字幕)/ass(标准ASS字幕)，默认txt")
     ap.add_argument("--keep", action="store_true",
                    help="转写成功后保留 asr_out_* 中间目录（默认用后自动删除，便于断点续传可显式 --keep）")
+    ap.add_argument("--no-progress", action="store_true",
+                   help="不接入实时进度面板（默认自动接入 xueren-live-progress；该 skill 缺失时静默降级）")
     args = ap.parse_args()
 
     _ensure_ffmpeg()
@@ -466,29 +534,43 @@ def main():
     assert os.path.exists(src), f"文件不存在: {src}"
     # 视频格式先提取音频
     audio = ensure_audio(src)
-    dur_min = probe_duration(audio) / 60
+    dur_s = probe_duration(audio)
+    dur_min = dur_s / 60
     print(f"=== B通道转写: {os.path.basename(audio)}  时长 {dur_min:.1f} 分钟 ===")
 
+    # 实时进度接入（可选；失败静默降级，不影响转写）
+    if not args.no_progress:
+        n_parts = 1 if dur_min <= WHOLE_LIMIT_MIN else count_parts(dur_s, args.part_min)
+        _open_progress(f"转写 {os.path.basename(src)}", total=max(1, n_parts), unit="段")
+        _p_set(0, f"{dur_min:.1f} 分钟 · " +
+               ("整段提交" if n_parts == 1 else f"拆 {n_parts} 段并行"))
+
     t0 = time.time()
-    if dur_min <= WHOLE_LIMIT_MIN:
-        out, n = run_whole(audio, args, orig_src=src)
-        print(f"\n完成: {out}  ({n} 句, 耗时 {time.time()-t0:.0f}s)")
-        # 若源文件是视频，清理中间生成的 mp3
-        if audio != src and os.path.exists(audio):
-            os.remove(audio)
-            print(f"[清理] 已删除中间音频: {os.path.basename(audio)}")
-    else:
-        out, all_ok = run_parts(audio, args, orig_src=src)
-        status = "完整" if all_ok else "部分缺失"
-        print(f"\n完成({status}): {out}  (耗时 {time.time()-t0:.0f}s)")
-        if all_ok and not args.keep:
-            print(f"[提示] asr_out_* 中间目录已自动删除（如需保留断点续传可加 --keep）")
-        elif all_ok and args.keep:
-            print(f"[提示] 已保留 asr_out_* 中间目录（--keep）")
-        # 若源文件是视频，清理中间生成的 mp3（与整段分支保持一致）
-        if audio != src and os.path.exists(audio):
-            os.remove(audio)
-            print(f"[清理] 已删除中间音频: {os.path.basename(audio)}")
+    try:
+        if dur_min <= WHOLE_LIMIT_MIN:
+            out, n = run_whole(audio, args, orig_src=src)
+            print(f"\n完成: {out}  ({n} 句, 耗时 {time.time()-t0:.0f}s)")
+            _p_end(True, f"完成 {n} 句 · 耗时 {time.time()-t0:.0f}s")
+            # 若源文件是视频，清理中间生成的 mp3
+            if audio != src and os.path.exists(audio):
+                os.remove(audio)
+                print(f"[清理] 已删除中间音频: {os.path.basename(audio)}")
+        else:
+            out, all_ok = run_parts(audio, args, orig_src=src)
+            status = "完整" if all_ok else "部分缺失"
+            print(f"\n完成({status}): {out}  (耗时 {time.time()-t0:.0f}s)")
+            _p_end(all_ok, f"{status} · 耗时 {time.time()-t0:.0f}s")
+            if all_ok and not args.keep:
+                print(f"[提示] asr_out_* 中间目录已自动删除（如需保留断点续传可加 --keep）")
+            elif all_ok and args.keep:
+                print(f"[提示] 已保留 asr_out_* 中间目录（--keep）")
+            # 若源文件是视频，清理中间生成的 mp3（与整段分支保持一致）
+            if audio != src and os.path.exists(audio):
+                os.remove(audio)
+                print(f"[清理] 已删除中间音频: {os.path.basename(audio)}")
+    except Exception as e:
+        _p_end(False, f"{type(e).__name__}: {str(e)[:80]}")
+        raise
 
 
 if __name__ == "__main__":

@@ -47,7 +47,7 @@
 ```
 帮我安装这个 skill 并把这段录音转成文字：
 项目地址：https://github.com/JackieZheng/xueren-audio-video-to-text
-录音路径：C:/Users/<你>/Downloads/lecture.mp3
+录音路径：~/Downloads/lecture.mp3
 ```
 
 支持 skill 的 AI 工具（如 WorkBuddy）会自动完成：克隆仓库 → 装入 skill 目录 → 准备 Python + `requests` + ffmpeg → 调用 `scripts/asr_whole.py` 转写 → 交付同名 txt。
@@ -58,14 +58,14 @@
 2. 把解压出的文件夹交给 AI，说一句「安装这个 skill 并转写这段录音」：
 
    ```
-   安装这个目录下的 skill：C:/Users/<你>/Downloads/xueren-audio-video-to-text
-   然后转写：C:/Users/<你>/Downloads/lecture.mp3
+   安装这个目录下的 skill：~/Downloads/xueren-audio-video-to-text
+   然后转写：~/Downloads/lecture.mp3
    ```
 
 两种方式装好后，**使用都一样简单**——后续对话里直接发文件路径 + 一句转写需求即可，例如：
 
 ```
-把 C:/Users/<你>/Downloads/meeting.mp4 转成文字
+把 ~/Downloads/meeting.mp4 转成文字
 ```
 
 AI 会调用该 skill，在文件同目录产出 `meeting.txt`（纯文字、无时间戳、无头部说明），视频会自动先提取音频。
