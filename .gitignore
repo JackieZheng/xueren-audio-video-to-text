@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+# 本地自动下载的依赖（ffmpeg 等），不随仓库分发
+bin/
+*.exe
+# 运行临时产物
+asr_out_*/
+*.mp3.tmp
+
+# 产品口径：开发 / 测试内容不随仓库发布（用户约定）
+devlog.md
+docs/
+_bench_*
+_debug_*
+_demo_*
+_probe_*
+_selftest_*
+_test_*
+test_*
+*_check.py
+*_debug.py
+*_probe.py
+*_test.py
+*_tests.py
