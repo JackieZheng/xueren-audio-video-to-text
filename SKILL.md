@@ -7,7 +7,7 @@ slug: xueren-audio-video-to-text
 displayName: 雪人老师·音视频转文字
 summary: 长音频/视频转文字（B通道，免登录/免 key）。
 description_en: Convert long audio/video to text via AsrTools (no login/key needed).
-version: 2.6.13
+version: 2.6.12
 author: 雪人
 license: GPL-3.0
 allowed-tools: ""
